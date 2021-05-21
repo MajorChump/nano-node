@@ -317,9 +317,7 @@ void nano::active_transactions::request_confirm (nano::unique_lock<nano::mutex> 
 	{
 		bool const confirmed_l (election_l->confirmed ());
 
-		unconfirmed_count_l += !confirmed_l;
-		bool const overflow_l (unconfirmed_count_l > node.config.active_elections_size && election_l->election_start < election_ttl_cutoff_l);
-		if (overflow_l || election_l->transition_time (solicitor))
+		if (election_l->transition_time (solicitor))
 		{
 			if (election_l->optimistic () && election_l->failed ())
 			{
@@ -332,6 +330,10 @@ void nano::active_transactions::request_confirm (nano::unique_lock<nano::mutex> 
 			}
 
 			// Locks active mutex, cleans up the election and erases it from the main container
+			if (!election_l->confirmed ())
+			{
+				node.stats.inc (nano::stat::type::election, nano::stat::detail::election_drop_expired);
+			}
 			erase (election_l->qualified_root);
 		}
 	}
@@ -353,7 +355,7 @@ void nano::active_transactions::cleanup_election (nano::unique_lock<nano::mutex>
 
 	if (!info_a.confirmed)
 	{
-		node.stats.inc (nano::stat::type::election, nano::stat::detail::election_drop);
+		node.stats.inc (nano::stat::type::election, nano::stat::detail::election_drop_all);
 	}
 
 	for (auto const & [hash, block] : info_a.blocks)
@@ -1056,6 +1058,19 @@ void nano::active_transactions::erase_hash (nano::block_hash const & hash_a)
 	nano::unique_lock<nano::mutex> lock (mutex);
 	[[maybe_unused]] auto erased (blocks.erase (hash_a));
 	debug_assert (erased == 1);
+}
+
+void nano::active_transactions::erase_oldest ()
+{
+	nano::unique_lock<nano::mutex> lock (mutex);
+	if (!roots.empty ())
+	{
+		node.stats.inc (nano::stat::type::election, nano::stat::detail::election_drop_overflow);
+		auto item = roots.get<tag_random_access> ().front ();
+		cleanup_election (lock, item.election->cleanup_info ());
+		roots.get<tag_root> ().erase (item.election->qualified_root);
+		vacancy_update ();
+	}
 }
 
 bool nano::active_transactions::empty ()

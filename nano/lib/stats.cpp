@@ -760,6 +760,9 @@ std::string nano::stat::detail_to_string (uint32_t key)
 		case nano::stat::detail::tcp_write_drop:
 			res = "tcp_write_drop";
 			break;
+		case nano::stat::detail::tcp_write_success:
+			res = "tcp_write_success";
+			break;
 		case nano::stat::detail::tcp_write_no_socket_drop:
 			res = "tcp_write_no_socket_drop";
 			break;

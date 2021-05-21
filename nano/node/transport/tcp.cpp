@@ -57,6 +57,7 @@ void nano::transport::channel_tcp::send_buffer (nano::shared_const_buffer const 
 				{
 					if (!ec)
 					{
+						node.stats.inc (nano::stat::type::tcp, nano::stat::detail::tcp_write_success, nano::stat::dir::out);
 						node_l->network.tcp_channels.update (endpoint_a);
 					}
 					if (ec == boost::system::errc::host_unreachable)

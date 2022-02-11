@@ -199,7 +199,7 @@ class unchecked_info final
 {
 public:
 	unchecked_info () = default;
-	unchecked_info (std::shared_ptr<nano::block> const &, nano::account const &, uint64_t, nano::signature_verification = nano::signature_verification::unknown, bool = false);
+	unchecked_info (std::shared_ptr<nano::block> const &, nano::account const &, uint64_t, nano::signature_verification = nano::signature_verification::unknown);
 	unchecked_info (std::shared_ptr<nano::block> const &);
 	void serialize (nano::stream &) const;
 	bool deserialize (nano::stream &);
@@ -208,7 +208,6 @@ public:
 	/** Seconds since posix epoch */
 	uint64_t modified{ 0 };
 	nano::signature_verification verified{ nano::signature_verification::unknown };
-	bool confirmed{ false };
 };
 
 class block_info final
@@ -227,8 +226,8 @@ public:
 	confirmation_height_info (uint64_t, nano::block_hash const &);
 	void serialize (nano::stream &) const;
 	bool deserialize (nano::stream &);
-	uint64_t height;
-	nano::block_hash frontier;
+	uint64_t height{};
+	nano::block_hash frontier{};
 };
 
 namespace confirmation_height

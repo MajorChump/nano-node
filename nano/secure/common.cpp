@@ -354,12 +354,11 @@ nano::account const & nano::pending_key::key () const
 	return account;
 }
 
-nano::unchecked_info::unchecked_info (std::shared_ptr<nano::block> const & block_a, nano::account const & account_a, uint64_t modified_a, nano::signature_verification verified_a, bool confirmed_a) :
+nano::unchecked_info::unchecked_info (std::shared_ptr<nano::block> const & block_a, nano::account const & account_a, uint64_t modified_a, nano::signature_verification verified_a) :
 	block (block_a),
 	account (account_a),
 	modified (modified_a),
-	verified (verified_a),
-	confirmed (confirmed_a)
+	verified (verified_a)
 {
 }
 
@@ -519,9 +518,15 @@ std::string nano::vote::to_json () const
 	return stream.str ();
 }
 
+/**
+ * Returns the timestamp of the vote (with the duration bits masked, set to zero)
+ * If it is a final vote, all the bits including duration bits are returned as they are, all FF
+ */
 uint64_t nano::vote::timestamp () const
 {
-	return timestamp_m;
+	return (timestamp_m == std::numeric_limits<uint64_t>::max ())
+	? timestamp_m // final vote
+	: (timestamp_m & timestamp_mask);
 }
 
 uint8_t nano::vote::duration_bits () const

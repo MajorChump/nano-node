@@ -26,7 +26,6 @@ class stat_config final
 {
 public:
 	/** Reads the JSON statistics node */
-	nano::error deserialize_json (nano::jsonconfig & json);
 	nano::error deserialize_toml (nano::tomlconfig & toml);
 	nano::error serialize_toml (nano::tomlconfig & toml) const;
 
@@ -324,6 +323,8 @@ public:
 		election_drop_overflow,
 		election_drop_all,
 		election_restart,
+		election_confirmed,
+		election_not_confirmed,
 
 		// udp
 		blocking,
@@ -351,6 +352,9 @@ public:
 		tcp_max_per_subnetwork,
 		tcp_silent_connection_drop,
 		tcp_io_timeout_drop,
+		tcp_connect_error,
+		tcp_read_error,
+		tcp_write_error,
 
 		// ipc
 		invocations,
@@ -579,7 +583,7 @@ public:
 	std::unique_ptr<stat_log_sink> log_sink_json () const;
 
 	/** Returns string representation of detail */
-	static std::string detail_to_string (uint32_t key);
+	static std::string detail_to_string (stat::detail detail);
 
 	/** Stop stats being output */
 	void stop ();
@@ -587,6 +591,7 @@ public:
 private:
 	static std::string type_to_string (uint32_t key);
 	static std::string dir_to_string (uint32_t key);
+	static std::string detail_to_string (uint32_t key);
 
 	/** Constructs a key given type, detail and direction. This is used as input to update(...) and get_entry(...) */
 	uint32_t key_of (stat::type type, stat::detail detail, stat::dir dir) const

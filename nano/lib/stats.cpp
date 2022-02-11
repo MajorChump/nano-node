@@ -10,36 +10,6 @@
 #include <fstream>
 #include <sstream>
 
-nano::error nano::stat_config::deserialize_json (nano::jsonconfig & json)
-{
-	auto sampling_l (json.get_optional_child ("sampling"));
-	if (sampling_l)
-	{
-		sampling_l->get<bool> ("enabled", sampling_enabled);
-		sampling_l->get<size_t> ("capacity", capacity);
-		sampling_l->get<size_t> ("interval", interval);
-	}
-
-	auto log_l (json.get_optional_child ("log"));
-	if (log_l)
-	{
-		log_l->get<bool> ("headers", log_headers);
-		log_l->get<size_t> ("interval_counters", log_interval_counters);
-		log_l->get<size_t> ("interval_samples", log_interval_samples);
-		log_l->get<size_t> ("rotation_count", log_rotation_count);
-		log_l->get<std::string> ("filename_counters", log_counters_filename);
-		log_l->get<std::string> ("filename_samples", log_samples_filename);
-
-		// Don't allow specifying the same file name for counter and samples logs
-		if (log_counters_filename == log_samples_filename)
-		{
-			json.get_error ().set ("The statistics counter and samples config values must be different");
-		}
-	}
-
-	return json.get_error ();
-}
-
 nano::error nano::stat_config::deserialize_toml (nano::tomlconfig & toml)
 {
 	auto sampling_l (toml.get_optional_child ("sampling"));
@@ -568,9 +538,8 @@ std::string nano::stat::type_to_string (uint32_t key)
 	return res;
 }
 
-std::string nano::stat::detail_to_string (uint32_t key)
+std::string nano::stat::detail_to_string (stat::detail detail)
 {
-	auto detail = static_cast<stat::detail> (key >> 8 & 0x000000ff);
 	std::string res;
 	switch (detail)
 	{
@@ -754,6 +723,12 @@ std::string nano::stat::detail_to_string (uint32_t key)
 		case nano::stat::detail::election_restart:
 			res = "election_restart";
 			break;
+		case nano::stat::detail::election_confirmed:
+			res = "election_confirmed";
+			break;
+		case nano::stat::detail::election_not_confirmed:
+			res = "election_not_confirmed";
+			break;
 		case nano::stat::detail::blocking:
 			res = "blocking";
 			break;
@@ -786,6 +761,15 @@ std::string nano::stat::detail_to_string (uint32_t key)
 			break;
 		case nano::stat::detail::tcp_io_timeout_drop:
 			res = "tcp_io_timeout_drop";
+			break;
+		case nano::stat::detail::tcp_connect_error:
+			res = "tcp_connect_error";
+			break;
+		case nano::stat::detail::tcp_read_error:
+			res = "tcp_read_error";
+			break;
+		case nano::stat::detail::tcp_write_error:
+			res = "tcp_write_error";
 			break;
 		case nano::stat::detail::unreachable_host:
 			res = "unreachable_host";
@@ -906,6 +890,12 @@ std::string nano::stat::detail_to_string (uint32_t key)
 			break;
 	}
 	return res;
+}
+
+std::string nano::stat::detail_to_string (uint32_t key)
+{
+	auto detail = static_cast<stat::detail> (key >> 8 & 0x000000ff);
+	return detail_to_string (detail);
 }
 
 std::string nano::stat::dir_to_string (uint32_t key)

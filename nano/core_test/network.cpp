@@ -56,7 +56,7 @@ TEST (network, tcp_connection)
 TEST (network, construction_with_specified_port)
 {
 	nano::system system{};
-	auto const port = nano::test_node_port ();
+	auto const port = nano::get_available_port ();
 	auto const node = system.add_node (nano::node_config{ port, system.logging });
 	EXPECT_EQ (port, node->network.port);
 	EXPECT_EQ (port, node->network.endpoint ().port ());
@@ -85,7 +85,10 @@ TEST (network, self_discard)
 	ASSERT_EQ (1, system.nodes[0]->stats.count (nano::stat::type::error, nano::stat::detail::bad_sender));
 }
 
-TEST (network, send_node_id_handshake)
+// Test disabled because it's failing intermittently.
+// PR in which it got disabled: https://github.com/nanocurrency/nano-node/pull/3611
+// Issue for investigating it: https://github.com/nanocurrency/nano-node/issues/3612
+TEST (network, DISABLED_send_node_id_handshake)
 {
 	nano::node_flags node_flags;
 	node_flags.disable_udp = false;
@@ -792,7 +795,7 @@ TEST (message_buffer_manager, stats)
 TEST (tcp_listener, tcp_node_id_handshake)
 {
 	nano::system system (1);
-	auto socket (std::make_shared<nano::socket> (*system.nodes[0]));
+	auto socket (std::make_shared<nano::client_socket> (*system.nodes[0]));
 	auto bootstrap_endpoint (system.nodes[0]->bootstrap.endpoint ());
 	auto cookie (system.nodes[0]->network.syn_cookies.assign (nano::transport::map_tcp_to_endpoint (bootstrap_endpoint)));
 	nano::node_id_handshake node_id_handshake{ nano::dev::network_params.network, cookie, boost::none };
@@ -821,11 +824,14 @@ TEST (tcp_listener, tcp_node_id_handshake)
 	ASSERT_TIMELY (5s, done);
 }
 
-TEST (tcp_listener, tcp_listener_timeout_empty)
+// Test disabled because it's failing intermittently.
+// PR in which it got disabled: https://github.com/nanocurrency/nano-node/pull/3611
+// Issue for investigating it: https://github.com/nanocurrency/nano-node/issues/3615
+TEST (tcp_listener, DISABLED_tcp_listener_timeout_empty)
 {
 	nano::system system (1);
 	auto node0 (system.nodes[0]);
-	auto socket (std::make_shared<nano::socket> (*node0));
+	auto socket (std::make_shared<nano::client_socket> (*node0));
 	std::atomic<bool> connected (false);
 	socket->async_connect (node0->bootstrap.endpoint (), [&connected] (boost::system::error_code const & ec) {
 		ASSERT_FALSE (ec);
@@ -848,7 +854,7 @@ TEST (tcp_listener, tcp_listener_timeout_node_id_handshake)
 {
 	nano::system system (1);
 	auto node0 (system.nodes[0]);
-	auto socket (std::make_shared<nano::socket> (*node0));
+	auto socket (std::make_shared<nano::client_socket> (*node0));
 	auto cookie (node0->network.syn_cookies.assign (nano::transport::map_tcp_to_endpoint (node0->bootstrap.endpoint ())));
 	nano::node_id_handshake node_id_handshake{ nano::dev::network_params.network, cookie, boost::none };
 	auto channel = std::make_shared<nano::transport::channel_tcp> (*node0, socket);
@@ -904,6 +910,10 @@ TEST (network, replace_port)
 	ASSERT_TIMELY (5s, !node0->network.udp_channels.channel (wrong_endpoint) && node0->network.udp_channels.channel (node1->network.endpoint ()));
 }
 
+// Test disabled because it's failing repeatedly for Windows + LMDB.
+// PR in which it got disabled: https://github.com/nanocurrency/nano-node/pull/3622
+// Issue for investigating it: https://github.com/nanocurrency/nano-node/issues/3621
+#ifndef _WIN32
 TEST (network, peer_max_tcp_attempts)
 {
 	// Add nodes that can accept TCP connection, but not node ID handshake
@@ -923,6 +933,7 @@ TEST (network, peer_max_tcp_attempts)
 	ASSERT_TRUE (node->network.tcp_channels.reachout (nano::endpoint (node->network.endpoint ().address (), nano::get_available_port ())));
 	ASSERT_EQ (1, node->stats.count (nano::stat::type::tcp, nano::stat::detail::tcp_max_per_ip, nano::stat::dir::out));
 }
+#endif
 
 namespace nano
 {

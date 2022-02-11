@@ -93,12 +93,16 @@ nano::node::node (boost::asio::io_context & io_ctx_a, boost::filesystem::path co
 	logger (config_a.logging.min_time_between_log_output),
 	store_impl (nano::make_store (logger, application_path_a, network_params.ledger, flags.read_only, true, config_a.rocksdb_config, config_a.diagnostics_config.txn_tracking, config_a.block_processor_batch_max_time, config_a.lmdb_config, config_a.backup_before_upgrade)),
 	store (*store_impl),
+	unchecked{ store, flags.disable_block_processor_unchecked_deletion },
 	wallets_store_impl (std::make_unique<nano::mdb_wallets_store> (application_path_a / "wallets.ldb", config_a.lmdb_config)),
 	wallets_store (*wallets_store_impl),
 	gap_cache (*this),
 	ledger (store, stats, network_params.ledger, flags_a.generate_cache),
 	checker (config.signature_checker_threads),
-	network (*this, config.peering_port),
+	// empty `config.peering_port` means the user made no port choice at all;
+	// otherwise, any value is considered, with `0` having the special meaning of 'let the OS pick a port instead'
+	//
+	network (*this, config.peering_port.has_value () ? *config.peering_port : 0),
 	telemetry (std::make_shared<nano::telemetry> (network, workers, observers.telemetry, stats, network_params, flags.disable_ongoing_telemetry_requests)),
 	bootstrap_initiator (*this),
 	// BEWARE: `bootstrap` takes `network.port` instead of `config.peering_port` because when the user doesn't specify
@@ -126,6 +130,9 @@ nano::node::node (boost::asio::io_context & io_ctx_a, boost::filesystem::path co
 	startup_time (std::chrono::steady_clock::now ()),
 	node_seq (seq)
 {
+	unchecked.satisfied = [this] (nano::unchecked_info const & info) {
+		this->block_processor.add (info);
+	};
 	if (!init_error ())
 	{
 		telemetry->start ();
@@ -410,7 +417,7 @@ nano::node::node (boost::asio::io_context & io_ctx_a, boost::filesystem::path co
 			if (!flags.disable_unchecked_drop && !use_bootstrap_weight && !flags.read_only)
 			{
 				auto const transaction (store.tx_begin_write ({ tables::unchecked }));
-				store.unchecked.clear (transaction);
+				unchecked.clear (transaction);
 				logger.always_log ("Dropping unchecked blocks");
 			}
 		}
@@ -552,6 +559,7 @@ std::unique_ptr<nano::container_info_component> nano::collect_container_info (no
 	composite->add_component (collect_container_info (node.confirmation_height_processor, "confirmation_height_processor"));
 	composite->add_component (collect_container_info (node.distributed_work, "distributed_work"));
 	composite->add_component (collect_container_info (node.aggregator, "request_aggregator"));
+	composite->add_component (node.scheduler.collect_container_info ("election_scheduler"));
 	return composite;
 }
 
@@ -631,7 +639,10 @@ void nano::node::start ()
 		{
 			network.port = bootstrap.port;
 		}
+
+		logger.always_log (boost::str (boost::format ("Node started with peering port `%1%`.") % network.port));
 	}
+
 	if (!flags.disable_backup)
 	{
 		backup_wallet ();
@@ -670,6 +681,7 @@ void nano::node::stop ()
 		// Cancels ongoing work generation tasks, which may be blocking other threads
 		// No tasks may wait for work generation in I/O threads, or termination signal capturing will be unable to call node::stop()
 		distributed_work.stop ();
+		unchecked.stop ();
 		block_processor.stop ();
 		aggregator.stop ();
 		vote_processor.stop ();
@@ -702,6 +714,9 @@ void nano::node::keepalive_preconfigured (std::vector<std::string> const & peers
 {
 	for (auto i (peers_a.begin ()), n (peers_a.end ()); i != n; ++i)
 	{
+		// can't use `network.port` here because preconfigured peers are referenced
+		// just by their address, so we rely on them listening on the default port
+		//
 		keepalive (*i, network_params.network.default_node_port);
 	}
 }
@@ -931,7 +946,7 @@ void nano::node::unchecked_cleanup ()
 		auto const now (nano::seconds_since_epoch ());
 		auto const transaction (store.tx_begin_read ());
 		// Max 1M records to clean, max 2 minutes reading to prevent slow i/o systems issues
-		for (auto [i, n] = store.unchecked.full_range (transaction); i != n && cleaning_list.size () < 1024 * 1024 && nano::seconds_since_epoch () - now < 120; ++i)
+		for (auto [i, n] = unchecked.full_range (transaction); i != n && cleaning_list.size () < 1024 * 1024 && nano::seconds_since_epoch () - now < 120; ++i)
 		{
 			nano::unchecked_key const & key (i->first);
 			nano::unchecked_info const & info (i->second);
@@ -955,9 +970,9 @@ void nano::node::unchecked_cleanup ()
 		{
 			auto key (cleaning_list.front ());
 			cleaning_list.pop_front ();
-			if (store.unchecked.exists (transaction, key))
+			if (unchecked.exists (transaction, key))
 			{
-				store.unchecked.del (transaction, key);
+				unchecked.del (transaction, key);
 			}
 		}
 	}

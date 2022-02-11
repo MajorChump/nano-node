@@ -3,7 +3,6 @@
 #include <nano/lib/config.hpp>
 #include <nano/lib/diagnosticsconfig.hpp>
 #include <nano/lib/errors.hpp>
-#include <nano/lib/jsonconfig.hpp>
 #include <nano/lib/lmdbconfig.hpp>
 #include <nano/lib/numbers.hpp>
 #include <nano/lib/rocksdbconfig.hpp>
@@ -14,6 +13,7 @@
 #include <nano/secure/common.hpp>
 
 #include <chrono>
+#include <optional>
 #include <vector>
 
 namespace nano
@@ -35,15 +35,13 @@ class node_config
 {
 public:
 	node_config (nano::network_params & network_params = nano::dev::network_params);
-	node_config (uint16_t, nano::logging const &, nano::network_params & network_params = nano::dev::network_params);
-	nano::error serialize_json (nano::jsonconfig &) const;
-	nano::error deserialize_json (bool &, nano::jsonconfig &);
+	node_config (const std::optional<uint16_t> &, nano::logging const &, nano::network_params & network_params = nano::dev::network_params);
 	nano::error serialize_toml (nano::tomlconfig &) const;
 	nano::error deserialize_toml (nano::tomlconfig &);
 	bool upgrade_json (unsigned, nano::jsonconfig &);
 	nano::account random_representative () const;
 	nano::network_params & network_params;
-	uint16_t peering_port{ 0 };
+	std::optional<uint16_t> peering_port{};
 	nano::logging logging;
 	std::vector<std::pair<std::string, uint16_t>> work_peers;
 	std::vector<std::pair<std::string, uint16_t>> secondary_work_peers{ { "127.0.0.1", 8076 } }; /* Default of nano-pow-server */
@@ -110,11 +108,6 @@ public:
 	nano::frontiers_confirmation_mode deserialize_frontiers_confirmation (std::string const &);
 	/** Entry is ignored if it cannot be parsed as a valid address:port */
 	void deserialize_address (std::string const &, std::vector<std::pair<std::string, uint16_t>> &) const;
-
-	static unsigned json_version ()
-	{
-		return 18;
-	}
 };
 
 class node_flags final

@@ -97,7 +97,7 @@ void nano::bootstrap_connections::pool_connection (std::shared_ptr<nano::bootstr
 	auto const & socket_l = client_a->socket;
 	if (!stopped && !client_a->pending_stop && !node.network.excluded_peers.check (client_a->channel->get_tcp_endpoint ()))
 	{
-		socket_l->start_timer (node.network_params.network.idle_timeout);
+		socket_l->set_timeout (node.network_params.network.idle_timeout);
 		// Push into idle deque
 		if (!push_front)
 		{
@@ -144,7 +144,7 @@ std::shared_ptr<nano::bootstrap_client> nano::bootstrap_connections::find_connec
 void nano::bootstrap_connections::connect_client (nano::tcp_endpoint const & endpoint_a, bool push_front)
 {
 	++connections_count;
-	auto socket (std::make_shared<nano::socket> (node));
+	auto socket (std::make_shared<nano::client_socket> (node));
 	auto this_l (shared_from_this ());
 	socket->async_connect (endpoint_a,
 	[this_l, socket, endpoint_a, push_front] (boost::system::error_code const & ec) {
@@ -179,7 +179,7 @@ void nano::bootstrap_connections::connect_client (nano::tcp_endpoint const & end
 	});
 }
 
-unsigned nano::bootstrap_connections::target_connections (std::size_t pulls_remaining, std::size_t attempts_count)
+unsigned nano::bootstrap_connections::target_connections (std::size_t pulls_remaining, std::size_t attempts_count) const
 {
 	auto const attempts_factor = nano::narrow_cast<unsigned> (node.config.bootstrap_connections * attempts_count);
 	if (attempts_factor >= node.config.bootstrap_connections_max)
@@ -477,7 +477,7 @@ void nano::bootstrap_connections::stop ()
 	lock.unlock ();
 	condition.notify_all ();
 	lock.lock ();
-	for (auto i : clients)
+	for (auto const & i : clients)
 	{
 		if (auto client = i.lock ())
 		{
